@@ -315,6 +315,10 @@
 ;; 2011-10-16  (cjwhite)
 ;; - Bug fix: first time sync of tasks with folders failed with org-mode 6.33x
 ;;
+;; 2011-11-08  (myuhe)
+;; - Bug fix for difference of timezone (myuhe)
+;; - Support starttime and duetime (myuhe)
+;;
 ;;; Code:
 
 (require 'org)
@@ -410,8 +414,8 @@ updated.  Set to t to sync completed tasks into the local buffer."
 (defconst org-toodledo-fields 
   '( 
     ;; Toodledo recongized fields
-    "id" "title" "status" "completed" "repeat" "repeatfrom" "context" "duedate" 
-    "startdate" "modified" "folder" "goal" "priority" "note" "length" "parent"
+    "id" "title" "status" "completed" "repeat" "repeatfrom" "context" "duedate" "duetime"
+    "startdate" "starttime" "modified" "folder" "goal" "priority" "note" "length" "parent"
     ;; org-toodledo only fields
     "sync" "hash")
   "All fields related to a task"
@@ -437,8 +441,8 @@ returns them automatically, or because they are internal only fields"
   )
 
 (defconst org-toodledo-hash-fields 
-  '( "title" "status" "completed" "repeat" "repeatfrom" "context" "duedate" "startdate"
-     "folder" "goal" "priority" "note" "length" "parent")
+  '( "title" "status" "completed" "repeat" "repeatfrom" "context" "duedate" "duetime" 
+     "startdate" "starttime" "folder" "goal" "priority" "note" "length" "parent")
   "Fields that are used to compute the hash of a task for detecting when a task changed."
   )
 
@@ -1105,7 +1109,15 @@ an alist of the task fields."
           (aput 'info "goal" (org-toodledo-goal-to-id (org-entry-get nil "Goal"))))
         
         (when deadline
-          (aput 'info "duedate" (format "%.0f" (org-time-string-to-seconds deadline)))
+          ;;(aput 'info "duedate" (format "%.0f" (org-time-string-to-seconds deadline)))
+          (aput 'info "duedate" (format "%.0f" 
+                                        (+ (car (current-time-zone)) (org-time-string-to-seconds deadline))))
+          (unless 
+              (and
+               (= 0 (caddr (org-parse-time-string deadline)))
+               (= 0 (cadr (org-parse-time-string deadline))))
+          (aput 'info "duetime" (format 
+                                 "%.0f" (+ (car (current-time-zone)) (org-time-string-to-seconds deadline)))))
           (let ((repeat (org-toodledo-org-to-repeat deadline)))
             (when repeat
               (aput 'info "repeat" (car repeat))
@@ -1114,10 +1126,15 @@ an alist of the task fields."
             )
           )
         (when scheduled
-          (aput 'info "startdate" (format "%.0f" (org-time-string-to-seconds scheduled))))
-
+          (aput 'info "startdate" (format
+                                   "%.0f" (+ (car (current-time-zone)) (org-time-string-to-seconds scheduled))))
+          (unless 
+              (and
+               (= 0 (caddr (org-parse-time-string scheduled)))
+               (= 0 (cadr (org-parse-time-string scheduled))))
+            (aput 'info "starttime" (format "%.0f"
+                                            (+ (car (current-time-zone)) (org-time-string-to-seconds scheduled))))))
         (aput 'info "parent" (org-toodledo-get-parent-id))
-        
         info))))
 
 (defun org-toodledo-get-parent-id ()
@@ -1219,7 +1236,9 @@ an alist of the task fields."
            (context (org-toodledo-task-context task))
            (note (org-toodledo-task-note task))
            (duedate (org-toodledo-task-duedate task))
+           (duetime (org-toodledo-task-duetime task))
            (startdate (org-toodledo-task-startdate task))
+           (starttime (org-toodledo-task-starttime task))
            (modified (org-toodledo-task-modified task))
            (parent (org-toodledo-task-parent task))
            (folder (org-toodledo-task-folder task))
@@ -1285,17 +1304,26 @@ an alist of the task fields."
       ;; If a repeat string was found, it is added: "DEADLINE: <2011-08-21 Sun +1m>"
       (if (and duedate
                (not (<= (string-to-number duedate) 0)))    
-          (setq duedate (concat org-deadline-string " "
-                                (org-toodledo-format-date duedate repeat)))
+          (if (and duetime
+               (not (<= (string-to-number duetime) 0)))
+              (setq duedate (concat org-deadline-string " "
+                                    (org-toodledo-format-date duedate duetime repeat)))
+            (setq duedate (concat org-deadline-string " "
+                                  (org-toodledo-format-date duedate nil repeat))))
         (setq duedate nil))
       
       ;; startdate => "SCHEDULED: <2011-08-21 Sun>" 
       ;; If a repeat string was found, it is added: "DEADLINE: <2011-08-21 Sun +1m>"
       (if (and startdate
                (not (<= (string-to-number startdate) 0)))
-          (setq startdate (concat (make-string (if duedate 1 (1+ (or level 2))) ? )
+          (if (and starttime
+               (not (<= (string-to-number startdate) 0)))
+              (setq startdate (concat (make-string (if duedate 1 (1+ (or level 2))) ? )
                                   org-scheduled-string " "
-                                  (org-toodledo-format-date startdate repeat)))
+                                  (org-toodledo-format-date startdate starttime repeat)))
+            (setq startdate (concat (make-string (if duedate 1 (1+ (or level 2))) ? )
+                                  org-scheduled-string " "
+                                  (org-toodledo-format-date startdate nil repeat))))
         (setq startdate nil))
       
       (when (or duedate startdate)
@@ -1547,7 +1575,7 @@ as a Toodledo style string.  Return nil if STRING has no repeat information"
 
 ;; (assert (equal (org-toodledo-format-date "2003-08-12") "<2003-08-12 Tue>"))
 
-(defun org-toodledo-format-date (date &optional repeat)
+(defun org-toodledo-format-date (date &optional time repeat)
   "Return yyyy-mm-dd day for DATE."
   (concat
    "<"
@@ -1560,7 +1588,13 @@ as a Toodledo style string.  Return nil if STRING has no repeat information"
            (string-match "^[0-9]+$" date))
       (seconds-to-time (string-to-number date)))
      (t (apply 'encode-time (org-parse-time-string date)))))
-   (if repeat (concat " " repeat) "")
+   (when time 
+     (concat 
+      " "  (format-time-string 
+            "%H:%M" 
+            (seconds-to-time 
+             (+ (car (current-time-zone)) (string-to-number time))))))
+   (when repeat (concat " " repeat) "")
    ">"))
 
 ;;
