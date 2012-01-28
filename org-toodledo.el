@@ -1,4 +1,4 @@
-;;; org-toodledo.el - Toodledo integration for Emacs Org mode
+;;; org-toodledo.el --- Toodledo integration for Emacs Org mode
 ;;
 ;; (c) 2011 Christopher J. White (cjwhite -- emacs <at> grierwhite.com)
 ;; GNU General Public License v2 (GNU GPL v2),
