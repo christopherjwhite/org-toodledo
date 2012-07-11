@@ -830,7 +830,7 @@ interaction with the server.  If the token expires, a new token is automatically
 retrieved. "
   (if (or (string= org-toodledo-userid "")
           (string= org-toodledo-password ""))
-      (error "Please set 'org-toodledo-userid' and 'org-toodledo-password'"))
+      (error "Please set 'org-toodledo-userid' and 'org-toodledo-password or input the password"))
 
   (if (org-toodledo-token-valid)
       ;; Return cached token
@@ -883,11 +883,15 @@ retrieved. "
            org-toodledo-key)
       ;; Return cached key
       org-toodledo-key
-    ;; Recompute token and key
-    (setq org-toodledo-key
-          (md5 (concat (md5 org-toodledo-password)
-                       org-toodledo-apptoken
-                       (org-toodledo-token))))))
+    (progn
+      (if (string= org-toodledo-password "")
+          (setq org-toodledo-password (read-passwd "Enter toodledo password:")))
+      
+      ;; Recompute token and key
+      (setq org-toodledo-key
+            (md5 (concat (md5 org-toodledo-password)
+                         org-toodledo-apptoken
+                         (org-toodledo-token)))))))
 
 (defun org-toodledo-get-account-info ()
   "Return account information from server."
