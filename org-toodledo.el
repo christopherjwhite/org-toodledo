@@ -27,8 +27,7 @@
 ;; Free Software Foundation, Inc., 59 Temple Place - Suite 330, Boston,
 ;; MA 02111-1307, USA.
 
-;; Overview
-;; ========
+;;; Commentary:
 ;;
 ;; This package adds the ability to sync org-mode tasks with
 ;; Toodledo, a powerful web-based todo list manager that welcomes 3rd
