@@ -488,6 +488,11 @@ Where:
 
 (defconst org-toodledo-version "2.15")
 
+(defun caddar (x)
+  "Return the `car' of the `cdr' of the `cdr' of the `car' of X."
+  (declare (compiler-macro cl--compiler-macro-cXXr))
+  (car (cdr (cdr (car x)))))
+
 (defmacro org-toodledo-make-lookup-function (name)
   "Create a lookup function and caching functions for NAME.
 
